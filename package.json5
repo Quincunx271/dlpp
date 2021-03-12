@@ -1,0 +1,6 @@
+{
+    name: 'dl++',
+    version: '0.1.0',
+    namespace: 'Quincunx271',
+    test_driver: 'Catch-Main',
+}
