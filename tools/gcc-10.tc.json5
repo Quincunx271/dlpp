@@ -5,7 +5,7 @@
     cxx_version: 'c++20',
 
     flags: '-fsanitize=address -fPIC',
-    link_flags: '-fsanitize=address -ldl -Wl,-rpath=.',
+    link_flags: '-fsanitize=address -ldl',
 
     warning_flags: '',
     debug: 'split',

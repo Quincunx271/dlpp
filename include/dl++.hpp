@@ -6,7 +6,6 @@
 #include <type_traits>
 
 #include <dlfcn.h>
-#include <linux/limits.h>
 
 #ifndef DLPP_NOEXCEPTIONS
 #include <stdexcept>
@@ -14,9 +13,11 @@
 
 #ifdef _GNU_SOURCE
 #include <iterator>
-#include <link.h>
 #include <string>
 #include <string_view>
+
+#include <link.h>
+#include <linux/limits.h>
 #endif
 
 namespace dlpp {
@@ -30,28 +31,15 @@ namespace dlpp {
 
     namespace detail {
 #ifndef DLPP_NOEXCEPTIONS
-        inline void throw_dl_error(const char* msg = dlerror()) { throw dl_error(msg); }
-        inline const char* dl_error_message() { return dlerror(); }
+        inline void throw_dl_error(char const* msg = dlerror()) { throw dl_error(msg); }
+        inline char const* dl_error_message() { return dlerror(); }
 #else
-        inline void throw_dl_error(const char* = nullptr) { }
-        inline const char* dl_error_message() { return nullptr; }
+        inline void throw_dl_error(char const* = nullptr) { }
+        inline char const* dl_error_message() { return nullptr; }
 #endif
-
-        template <typename To, typename From>
-        static To transmute(From x)
-        {
-            static_assert(sizeof(To) == sizeof(From));
-            static_assert(std::is_trivially_copyable_v<From>);
-            static_assert(std::is_trivially_copyable_v<To>);
-            To r;
-
-            std::memcpy(&r, &x, sizeof(From));
-
-            return r;
-        }
     }
 
-    inline const char* dl_error_message() { return dlerror(); }
+    inline char const* dl_error_message() { return dlerror(); }
 
     enum class dl_flags : int
     {
@@ -68,6 +56,8 @@ namespace dlpp {
     {
         return (dl_flags)((int)lhs | (int)rhs);
     }
+
+    inline dl_flags& operator|=(dl_flags& lhs, dl_flags rhs) { return lhs = (lhs | rhs); }
 
     class lmid_t
     {
@@ -219,7 +209,7 @@ namespace dlpp {
     class dl
     {
     private:
-        struct dl_deleter
+        struct deleter
         {
             void operator()(void* handle) const
             {
@@ -230,31 +220,31 @@ namespace dlpp {
             }
         };
 
-        std::unique_ptr<void, dl_deleter> handle;
+        std::unique_ptr<void, deleter> handle;
 
         explicit dl(void* handle)
             : handle(handle)
         { }
 
     public:
-        explicit dl(const char* path, dl_flags flags)
+        explicit dl(char const* path, dl_flags flags)
             : handle(dlopen(path, (int)flags))
         {
             if (!handle) detail::throw_dl_error();
         }
 
 #ifdef _GNU_SOURCE
-        explicit dl(lmid_t lmid, const char* path, dl_flags flags)
-            : handle(dlmopen(detail::transmute<Lmid_t>(lmid), path, (int)flags))
+        explicit dl(lmid_t lmid, char const* path, dl_flags flags)
+            : handle(dlmopen(lmid.value, path, (int)flags))
         {
             if (!handle) detail::throw_dl_error();
         }
 #endif
 
         template <typename T>
-        T* sym(const char* symbol)
+        T* sym(char const* symbol)
         {
-            const char* msg = detail::dl_error_message();
+            char const* msg = detail::dl_error_message();
             if (msg) {
                 detail::throw_dl_error(msg);
                 return nullptr;
@@ -274,9 +264,9 @@ namespace dlpp {
 
 #ifdef _GNU_SOURCE
         template <typename T>
-        T* vsym(const char* symbol, const char* version)
+        T* vsym(char const* symbol, char const* version)
         {
-            const char* msg = detail::dl_error_message();
+            char const* msg = detail::dl_error_message();
             if (msg) {
                 detail::throw_dl_error(msg);
                 return nullptr;
@@ -323,15 +313,12 @@ namespace dlpp {
 
         std::string info_origin() const
         {
-            std::string result;
-            result.resize(PATH_MAX + 1);
+            char origin[PATH_MAX + 1];
 
-            int code = dlinfo(handle.get(), RTLD_DI_ORIGIN, result.data());
+            int code = dlinfo(handle.get(), RTLD_DI_ORIGIN, origin);
             if (code) detail::throw_dl_error();
-            result.resize(std::strlen(result.data()));
-            result.shrink_to_fit();
 
-            return result;
+            return std::string(origin);
         }
 
         serinfo info_serinfo() const
